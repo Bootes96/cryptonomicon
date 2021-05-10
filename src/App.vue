@@ -19,6 +19,22 @@
                 placeholder="Например DOGE"
               />
             </div>
+            <div
+              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+              v-if="matchingCoins.length"
+            >
+              <span
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+                v-for="coin in matchingCoins"
+                :key="coin.Id"
+                @click="addTickerFromTip(coin.Symbol)"
+              >
+                {{ coin.Symbol }}
+              </span>
+            </div>
+            <div v-if="coinsExist" class="text-sm text-red-600">
+              Такой тикер уже добавлен
+            </div>
           </div>
         </div>
         <button
@@ -140,34 +156,62 @@ export default {
       tickers: [],
       sel: null,
       graph: [],
+      coins: [],
+      matchingCoins: [],
+      coinsExist: false,
     };
   },
 
+  created() {
+    this.fetchCoins();
+  },
+
   methods: {
+    async fetchCoins() {
+      const res = await fetch(
+        "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
+      );
+      const result = await res.json();
+      this.coins.push(result.Data);
+    },
+
     add() {
-      const currentTicker = {
-        name: this.ticker,
-        price: "-",
-      };
+      //Если криптовалюта уже есть, то выведем сообщение
+      if (
+        !this.tickers.find(
+          (ticker) => ticker.name.toLowerCase() === this.ticker.toLowerCase()
+        )
+      ) {
+        const currentTicker = {
+          name: this.ticker,
+          price: "-",
+        };
 
-      this.tickers.push(currentTicker);
+        this.tickers.push(currentTicker);
+        const API_KEY = process.env.VUE_APP_API_KEY;
+        setInterval(async () => {
+          const f = await fetch(
+            `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=${API_KEY}`
+          );
+          const data = await f.json();
+          this.tickers.find((t) => t.name === currentTicker.name).price =
+            data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-      const API_KEY = process.env.VUE_APP_API_KEY;
+          if (this.sel?.name === currentTicker.name) {
+            this.graph.push(data.USD);
+          }
+        }, 5000);
 
-      setInterval(async() => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=${API_KEY}`
-        );
-        const data = await f.json();
-        this.tickers.find((t) => t.name === currentTicker.name).price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+        this.ticker = "";
+      } else {
+        this.coinsExist = true;
+      }
+    },
 
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD);
-        }
-      }, 5000);
-
-      this.ticker = "";
+    //Тикер из подсказки
+    addTickerFromTip(tickerName) {
+      this.ticker = tickerName;
+      this.add();
     },
 
     handleDelete(tickerToRemove) {
@@ -187,6 +231,22 @@ export default {
           ? 100
           : 5 + ((price - minValue) * 95) / (maxValue - minValue)
       );
+    },
+  },
+
+  watch: {
+    ticker() {
+      if (this.ticker.length) {
+        this.coinsExist = false;
+        const arr = Object.values(this.coins[0]);
+        const filteredCoins = arr.filter((item) =>
+          item.Symbol.includes(this.ticker.toUpperCase())
+        );
+        //Берем четыре последние элемента массива, так как они больше удовлетворяют запросу
+        this.matchingCoins = filteredCoins.slice(-4);
+      } else {
+        this.matchingCoins = [];
+      }
     },
   },
 };
