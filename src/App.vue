@@ -57,8 +57,8 @@
                 {{ coin.Symbol }}
               </span>
             </div>
-            <div v-if="coinsExist" class="text-sm text-red-600">
-              Такой тикер уже добавлен
+            <div v-if="errorMessage.length" class="text-sm text-red-600">
+              {{ errorMessage }}
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@ export default {
       graph: [],
       coins: [],
       matchingCoins: [],
-      coinsExist: false,
+      errorMessage: "",
       spinner: true,
     };
   },
@@ -202,13 +202,27 @@ export default {
       this.spinner = false;
     },
 
-    add() {
-      //Если криптовалюта уже есть, то выведем сообщение
+    validation() {
+      const arr = Object.values(this.coins[0]);
+      // Если валюта существует и еще не была добавлена
       if (
+        arr.find((item) => item.Symbol === this.ticker.toUpperCase()) &&
         !this.tickers.find(
           (ticker) => ticker.name.toUpperCase() === this.ticker.toUpperCase()
         )
       ) {
+        return true;
+      } else if (
+        !arr.find((item) => item.Symbol === this.ticker.toUpperCase())
+      ) {
+        this.errorMessage = "Такой валюты не существует";
+      } else {
+        this.errorMessage = "Такой тикер уже добавлен";
+      }
+    },
+
+    add() {
+      if (this.validation()) {
         const currentTicker = {
           name: this.ticker,
           price: "-",
@@ -230,9 +244,7 @@ export default {
         }, 5000);
 
         this.ticker = "";
-        this.coinsExist = false;
-      } else {
-        this.coinsExist = true;
+        this.errorMessage = "";
       }
     },
 
@@ -271,7 +283,7 @@ export default {
             (ticker) => ticker.name.toUpperCase() === this.ticker.toUpperCase()
           )
         ) {
-          this.coinsExist = false;
+          this.errorMessage = "";
         }
         const arr = Object.values(this.coins[0]);
         const filteredCoins = arr.filter((item) =>
